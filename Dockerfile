@@ -1,36 +1,32 @@
-ARG NGINX_VERSION=1.19.2
+ARG NGINX_TAG=alpine
 
-FROM nginx:$NGINX_VERSION
+FROM nginx:$NGINX_TAG
 
-ARG NGINX_VERSION=1.19.2
-ARG GEOIP2_VERSION=3.3
-
-RUN mkdir -p /var/lib/GeoIP/
-
-RUN apt-get update \
-    && apt-get install -y \
-        build-essential \
-        libpcre++-dev \
-        zlib1g-dev \
-        libgeoip-dev \
-        libmaxminddb-dev \
+RUN apk add libmaxminddb libmaxminddb-dev --repository=https://pkgs.alpinelinux.org/package/edge/main/x86/libmaxmindd \
+    && apk add \
+        alpine-sdk \
         wget \
+        pcre-dev \
+        zlib-dev \
         git
 
+RUN echo "export NGINX_VER=`/usr/sbin/nginx -v 2>&1 | /usr/bin/cut -d / -f2`" >> /envfile
+RUN . /envfile; echo $NGINX_VER
+RUN cat /envfile
+
 RUN cd /opt \
-    && git clone --depth 1 -b $GEOIP2_VERSION --single-branch https://github.com/leev/ngx_http_geoip2_module.git \
-    && wget -O - http://nginx.org/download/nginx-$NGINX_VERSION.tar.gz | tar zxfv - \
-    && mv /opt/nginx-$NGINX_VERSION /opt/nginx \
+    && . /envfile \
+    && git clone  https://github.com/leev/ngx_http_geoip2_module.git \
+    && wget -O - http://nginx.org/download/nginx-$NGINX_VER.tar.gz | tar zxfv - \
+    && mv /opt/nginx-$NGINX_VER /opt/nginx \
     && cd /opt/nginx \
     && ./configure --with-compat --add-dynamic-module=/opt/ngx_http_geoip2_module \
-    && make modules 
+    && make modules
 
-FROM nginx:$NGINX_VERSION
+FROM nginx:$NGINX_TAG
 
-COPY --from=0 /opt/nginx/objs/ngx_http_geoip2_module.so /usr/lib/nginx/modules
+COPY --from=0 /opt/nginx/objs/ngx_http_geoip2_module.so /etc/nginx/modules
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends --no-install-suggests libmaxminddb0 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && chmod -R 644 /usr/lib/nginx/modules/ngx_http_geoip2_module.so 
+RUN apk add certbot certbot-nginx
+
+RUN echo "0 12 * * * /usr/bin/docker exec nginx-rproxy /usr/bin/certbot renew --quiet" >> /etc/crontabs/root
