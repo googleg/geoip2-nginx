@@ -27,6 +27,7 @@ FROM nginx:$NGINX_TAG
 
 COPY --from=0 /opt/nginx/objs/ngx_http_geoip2_module.so /etc/nginx/modules
 
-RUN apk add certbot certbot-nginx
+RUN apk add certbot certbot-nginx \
+    && apk add  libmaxminddb --repository=https://pkgs.alpinelinux.org/package/edge/main/x86/libmaxmindd
 
 RUN echo "0 12 * * * /usr/bin/docker exec nginx-rproxy /usr/bin/certbot renew --quiet" >> /etc/crontabs/root
